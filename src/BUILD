@@ -3,7 +3,6 @@ cc_binary(
     srcs = ["main.cpp"],
     deps = [
         "@mujoco", 
-        "@eigen"
+        "@eigen",
     ]
 )
-
