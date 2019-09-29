@@ -16,8 +16,7 @@ $ bazel run //src:main
 Bazel will automatically download Eigen and MuJoCo, but you will still need a MuJoCo license under ```~/.mujoco/mjkey.txt``` to run the code.
 
 ### Debugging
-To generate a debug build run:
-```$ bazel build //src/... compilation_mode=dbg```
+To generate a debug build run ```$ bazel build //src/... compilation_mode=dbg```. For convenience there's also a setting commented out in ```.bazelrc``` that will set this as the default compilation mode.
 
 In VSCode, add the following config to ```launch.json``` under "configurations":
 
