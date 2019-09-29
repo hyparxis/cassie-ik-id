@@ -1,10 +1,11 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Mujoco
-new_local_repository(
+http_archive(
     name = "mujoco",
-    path = "/home/pedro/.mujoco/mujoco200_linux/",
-    build_file = "mujoco.BUILD",
+    url = "https://www.roboti.us/download/mujoco200_linux.zip",
+    build_file = "//:mujoco.BUILD",
+    strip_prefix = "mujoco200_linux"
 )
 
 # Eigen
