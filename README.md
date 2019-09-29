@@ -1,7 +1,7 @@
 # IK/ID
 This repository will contain code for inverse kinematics and inverse dynamics of a Cassie robot, mainly using MuJoCo and Eigen.
 
-This repo is set-up to be built using Bazel (currently 0.29). To build the code run:
+This repo is set-up to be built using [Bazel](https://docs.bazel.build/versions/master/install.html) (currently 0.29). To build the code run:
 
 ```
 $ bazel build //src/...
