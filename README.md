@@ -12,3 +12,5 @@ Similarly, to run a demo, run:
 ```
 $ bazel run //src:main
 ```
+
+Bazel will automatically download Eigen and MuJoCo, but you will still need a MuJoCo license under ```~/.mujoco/mjkey.txt``` to run the code.
