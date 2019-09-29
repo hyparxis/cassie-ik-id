@@ -1,2 +1,4 @@
 build --cxxopt='-std=c++17'
-build --compilation_mode=dbg # Comment this out to disable debug builds
+
+# Uncomment this to default to debug builds
+# build --compilation_mode=dbg 
