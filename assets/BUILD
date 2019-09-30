@@ -1,6 +1,6 @@
 # Mujoco models etc.
 filegroup(
     name = "assets",
-    srcs = glob(["*"]),
+    srcs = glob(["**"]),
     visibility = ["//visibility:public"],
 )

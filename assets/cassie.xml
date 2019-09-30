@@ -78,10 +78,10 @@
       <camera name='track' pos='0 -3 1' zaxis='0 -1 0.5' mode='track'/>
       <!--camera name='track' pos='-3 0 0' xyaxes='0 -1 0 0 0 1' mode='track'/-->
       <inertial pos='0.05066 0.000346 0.02841' mass='10.33' fullinertia='0.085821 0.049222 0.08626 1.276e-05 -0.00016022 -0.000414'/>
-      <joint type='slide' axis='1 0 0' limited='false'/>
+      <!-- <joint type='slide' axis='1 0 0' limited='false'/>
       <joint type='slide' axis='0 1 0' limited='false'/>
       <joint type='slide' axis='0 0 1' limited='false' ref='1.01'/>
-      <joint type='ball' limited='false'/>
+      <joint type='ball' limited='false'/> -->
       <geom type='mesh' mesh='cassie-pelvis'/>
       <geom type='sphere' size='0.15' pos='0.02 0 0.02' class='collision'/>
       <site name='imu' size='0.01' pos='0.03155 0 -0.07996'/>

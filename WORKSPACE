@@ -26,4 +26,3 @@ http_archive(
     strip_prefix = "googletest-release-1.8.1",
     build_file = "@//:gtest.BUILD",
 )
-
