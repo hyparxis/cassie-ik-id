@@ -4,6 +4,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 http_archive(
     name = "mujoco",
     url = "https://www.roboti.us/download/mujoco200_linux.zip",
+    sha256 = "ba8560040f6ca47dbd89e4731bc9e06080a99eba4583cda95cdedca802389153",
     strip_prefix = "mujoco200_linux",
     build_file = "//:mujoco.BUILD",
 )
