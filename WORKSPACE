@@ -26,3 +26,10 @@ http_archive(
     strip_prefix = "googletest-release-1.8.1",
     build_file = "@//:gtest.BUILD",
 )
+
+# OpenGL
+new_local_repository(
+    name = "opengl",
+    path = "/usr/lib/x86_64-linux-gnu",
+    build_file = "opengl.BUILD"
+)

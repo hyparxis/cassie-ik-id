@@ -1,7 +1,10 @@
+#include "render/render.hpp"
+
 #include "mujoco.h"
 #include <Eigen/Dense>
 
 #include <iostream>
+#include <thread>
 
 // Globals
 static mjModel* m;
@@ -13,6 +16,7 @@ typedef Eigen::Map<
 
 typedef Eigen::Map<
     Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::RowMajor>> mjMapVector_t;
+
 
 void activate_mujoco()
 {
@@ -38,6 +42,16 @@ void activate_mujoco()
     d = mj_makeData(m);
 }
 
+
+// Avoids contention with code that edits global mjData in seperate threads
+void mj_forward_threadsafe(const mjModel* m, mjData* d, std::mutex& mtx)
+{
+    mtx.lock();
+    mj_forward(m, d);
+    mtx.unlock();
+}
+
+
 int main() 
 {
     activate_mujoco();
@@ -49,16 +63,19 @@ int main()
         -1.1997, 0, 1.4267, 0,      -1.5244,  1.5244, -1.5968
     };
 
-    mju_copy(&d->qpos[0], qpos_init, 28);
-
+    mju_copy(&d->qpos[7], qpos_init, 28);
     mj_forward(m, d);
 
-    // Make sure Eigen works
-    Eigen::Vector3d v(1,2,3);  // a vector
-    Eigen::AngleAxisd rot(0.5*M_PI, Eigen::Vector3d::UnitY()); // rotation of pi/2 radians
-    std::cout << "Applying rotation yields:" << std::endl << rot * v << std::endl;
-    Eigen::Translation<double,3> tr(Eigen::Vector3d::UnitZ()); // translation in z-direction
-    std::cout << "Applying translation yields:" << std::endl << tr * v << std::endl;
-    Eigen::Affine3d f = rot * tr; // combine in one transformation
-    std::cout << "Applying both yields:" << std::endl <<  f * v << std::endl;
+    std::mutex mtx;
+    std::thread render_thread(render, m, d, std::ref(mtx));
+
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    d->qpos[0] = 5; // Not truly threadsafe but we'll let it slide
+    mj_forward_threadsafe(m, d, mtx);
+
+    render_thread.join();
+
+    mj_deleteData(d); 
+    mj_deleteModel(m);
 }
