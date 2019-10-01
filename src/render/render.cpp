@@ -8,8 +8,6 @@
 static GLFWwindow* window = nullptr;
 static const mjModel* m = nullptr;
 
-static bool initialized = false;
-
 mjvCamera cam;                      // abstract camera
 mjvOption opt;                      // visualization options
 mjvScene scn;                       // abstract scene

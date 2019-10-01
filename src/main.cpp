@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <thread>
+#include <chrono>
 
 // Globals
 static mjModel* m;
@@ -15,7 +16,16 @@ typedef Eigen::Map<
     Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> mjMapMatrix_t;
 
 typedef Eigen::Map<
-    Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::RowMajor>> mjMapVector_t;
+    Eigen::Matrix<double, Eigen::Dynamic, 1>> mjMapVector_t;
+
+
+// Avoids contention with code that edits global mjData in seperate threads
+#define THREADSAFE(mtx, mj_func) \
+do {                             \
+    mtx.lock();                  \
+    mj_func;                     \
+    mtx.unlock();                \
+} while(0)
 
 
 void activate_mujoco()
@@ -43,12 +53,18 @@ void activate_mujoco()
 }
 
 
-// Avoids contention with code that edits global mjData in seperate threads
-void mj_forward_threadsafe(const mjModel* m, mjData* d, std::mutex& mtx)
+void cassie_inverse_dynamics(const mjModel *m, mjData* d, std::mutex& mtx)
 {
-    mtx.lock();
-    mj_forward(m, d);
-    mtx.unlock();
+    mjMapVector_t q(d->qpos, m->nq);
+    mjMapVector_t v(d->qvel, m->nv);
+    mjMapVector_t v_dot(d->qacc, m->nv);
+
+    mjMapVector_t tau(d->qfrc_inverse, m->nv);
+
+    // No desired acceleration
+    v_dot.setZero();
+
+    THREADSAFE(mtx, mj_inverse(m, d));
 }
 
 
@@ -69,10 +85,20 @@ int main()
     std::mutex mtx;
     std::thread render_thread(render, m, d, std::ref(mtx));
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // Give some time for the rendering thread to initialize
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    d->qpos[0] = 5; // Not truly threadsafe but we'll let it slide
-    mj_forward_threadsafe(m, d, mtx);
+    // TODO: use mjmodel timestep here
+    typedef std::chrono::duration<int, std::ratio<1, 2000>> framerate;
+
+    while (true) {
+        auto start_time = std::chrono::steady_clock::now();
+        auto end_time = start_time + framerate(1);
+
+        THREADSAFE(mtx, mj_step(m, d));
+
+        std::this_thread::sleep_until(end_time);
+    }
 
     render_thread.join();
 
