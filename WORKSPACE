@@ -24,12 +24,5 @@ http_archive(
     url = "https://github.com/google/googletest/archive/release-1.8.1.tar.gz",
     sha256 = "9bf1fe5182a604b4135edc1a425ae356c9ad15e9b23f9f12a02e80184c3a249c",
     strip_prefix = "googletest-release-1.8.1",
-    build_file = "@//:gtest.BUILD",
-)
-
-# OpenGL
-new_local_repository(
-    name = "opengl",
-    path = "/usr/lib/x86_64-linux-gnu",
-    build_file = "opengl.BUILD"
+    build_file = "//:gtest.BUILD",
 )
