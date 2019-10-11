@@ -67,10 +67,12 @@ void activate_mujoco()
 
 // Splits dof indices into independent and dependent dofs
 // "Independent" is (arbitrarily) defined relative to actuated joints
-std::pair<std::set<int>, std::set<int>> split_idcs(const mjModel *m)
+std::pair<Eigen::VectorXi, Eigen::VectorXi> split_idcs(const mjModel *m)
 { 
-    std::set<int> ind_idcs, dep_idcs;
+    Eigen::VectorXi ind_idx(m->nu);
+    Eigen::VectorXi dep_idx(m->nv - m->nu);
 
+    int i = 0, d = 0;
     for(int dof = 0; dof < m->nv; dof++){
         int jnt = m->dof_jntid[dof];
         auto name = mj_id2name(m, mjOBJ_JOINT, jnt);
@@ -80,22 +82,23 @@ std::pair<std::set<int>, std::set<int>> split_idcs(const mjModel *m)
 
         // Joint is independent (floating base || actuated || spring)
         if (name == nullptr || mj_name2id(m, mjOBJ_ACTUATOR, name) != -1 || m->jnt_stiffness[jnt] > 0) 
-            ind_idcs.insert(dof);
+            ind_idx[i++] = dof;
+        
         else 
-            dep_idcs.insert(dof);
+            dep_idx[d++] = dof;
     }
 
-    return std::make_pair(ind_idcs, dep_idcs);
+    return std::make_pair(ind_idx, dep_idx);
 }
 
 
-Eigen::MatrixXd getSubmatrix(std::set<int> col_idcs, Eigen::MatrixXd mat)
+Eigen::MatrixXd getSubmatrix(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
 {
+    // TODO: avoid copies
     Eigen::MatrixXd submat = Eigen::MatrixXd::Zero(mat.rows(), col_idcs.size());
 
-    int i = 0;
-    for (auto idx : col_idcs) 
-        submat.col(i++) = mat.col(idx);
+    for (int i = 0; i < col_idcs.size(); i++) 
+        submat.col(i) = mat.col(col_idcs[i]);
     
     return submat;
 }
@@ -119,7 +122,7 @@ Eigen::VectorXd getBiasVector(const mjModel *m, mjData* d)
 // solves [q_ind q_dep] = gamma * q_dep 
 Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen::MatrixXd G)
 {
-    std::set<int> ind_idx, dep_idx;
+    Eigen::VectorXi ind_idx, dep_idx;
     std::tie(ind_idx, dep_idx) = split_idcs(m);
 
     auto G_ind = getSubmatrix(ind_idx, G);
@@ -130,7 +133,12 @@ Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen
     Eigen::MatrixXd gamma = Eigen::MatrixXd::Identity(2 * K.rows(), K.cols());
     gamma.bottomRows(K.rows()) = K;
 
-    return gamma;
+    Eigen::VectorXi order(ind_idx.size() + dep_idx.size());
+    order << ind_idx, dep_idx;
+
+    Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(order);
+    
+    return P * gamma; // Permute gamma so it's in original q order
 }
 
 
@@ -182,11 +190,13 @@ Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d)
 
     auto G = getConstraintJacobian(m, d);
     auto R = getFullRankRowEquivalent(G);
+
     auto gamma = getConstraintProjectionMatrix(m, d, R);
     auto M = getInertiaMatrix(m, d);
     auto c = getBiasVector(m, d);
 
-    auto u = gamma.transpose() * (M * v_dot + c);
+    auto tau = M * v_dot + c;
+    auto u = gamma.transpose() * tau;
 
     return u;
 }
@@ -200,16 +210,14 @@ void inverseDynamics(const mjModel *m, mjData* d)
 
     mjMapVector_t tau(d->qfrc_inverse, m->nv);
 
-    Eigen::VectorXd v_dot_cached = v_dot;
+    Eigen::VectorXd v_dot_cached;
 
-    // No desired acceleration
-    
     THREADSAFE(
-        v_dot.setZero();
+        //v_dot_cached = v_dot;
+        v_dot.setZero(); // No desired acceleration
         mj_inverse(m, d);
-        v_dot = v_dot_cached;
+        //v_dot = v_dot_cached;
     );
-
 
     mjMapVector_t tau_applied(d->qfrc_applied, m->nv);
 
@@ -236,7 +244,7 @@ int main()
     //     -0.0045, 0, 0.4973, 0.9786,  0.0038, -0.0152, -0.2051,
     //     -1.1997, 0, 1.4267, 0,      -1.5244,  1.5244, -1.5968
     // };
-    //mju_copy(&d->qpos[7], qpos_init, 28);
+    // mju_copy(&d->qpos[7], qpos_init, 28);
 
     // double qpos_init[] = {
     // 3.52662e-05, 6.6877e-06, 1.01002, 
@@ -246,6 +254,16 @@ int main()
     // };
 
     // mju_copy(&d->qpos[0], qpos_init, 20);
+
+    // Eigen::PermutationMatrix<4, 4> perm;
+    // perm.indices() = {0, 3, 1, 2};
+
+    // Eigen::Vector4d vec(0, 3, 1, 2);
+
+    // std::cout << vec.transpose() << std::endl;
+    // std::cout << (perm.transpose() * vec).transpose() << std::endl;
+
+    // exit(1);
 
     mj_forward(m, d);
     double weight = mj_getTotalmass(m) * 9.806;
@@ -267,6 +285,8 @@ int main()
         auto end_time = start_time + timestep;
 
         u = constrainedInverseDynamics(m, d);
+
+        //inverseDynamics(m, d);
 
         //Eigen::Vector3d x_force = {0.0, 0.0, weight};
         //get_control(m, d, Eigen::VectorXd::Zero(m->nv), x_force, mtx);
