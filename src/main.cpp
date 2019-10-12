@@ -137,7 +137,7 @@ Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen
     order << ind_idx, dep_idx;
 
     Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P(order);
-    
+
     return P * gamma; // Permute gamma so it's in original q order
 }
 
@@ -186,7 +186,11 @@ Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
 Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d)
 {
     // No desired acceleration
-    auto v_dot = Eigen::VectorXd::Zero(m->nv);
+    Eigen::VectorXd v_dot;
+
+    THREADSAFE(
+        v_dot = -mjMapVector_t(d->qvel, m->nv);
+    );
 
     auto G = getConstraintJacobian(m, d);
     auto R = getFullRankRowEquivalent(G);
@@ -245,7 +249,7 @@ int main()
     //     -1.1997, 0, 1.4267, 0,      -1.5244,  1.5244, -1.5968
     // };
     // mju_copy(&d->qpos[7], qpos_init, 28);
-
+    // d->qpos[0] = -1;
     // double qpos_init[] = {
     // 3.52662e-05, 6.6877e-06, 1.01002, 
     // 1, 0.000261766, -0.000213897, -3.32552e-05,-0.000457461,0.00038115,
@@ -285,8 +289,6 @@ int main()
         auto end_time = start_time + timestep;
 
         u = constrainedInverseDynamics(m, d);
-
-        //inverseDynamics(m, d);
 
         //Eigen::Vector3d x_force = {0.0, 0.0, weight};
         //get_control(m, d, Eigen::VectorXd::Zero(m->nv), x_force, mtx);

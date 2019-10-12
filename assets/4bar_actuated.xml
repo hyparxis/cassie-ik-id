@@ -52,7 +52,7 @@
     <actuator>
     <!-- User parameter is the maximum no-load motor RPM -->
         <motor name='joint0'  joint='joint0' />
-        <motor name='joint1'  joint='joint1' />
+        <motor name='joint3'  joint='joint3' />
     </actuator>
 
     <equality>
