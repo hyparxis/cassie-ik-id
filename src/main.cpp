@@ -26,7 +26,7 @@ typedef Eigen::Map<
 // TODO: better name
 // Avoids contention with code that edits/reads global mjData in seperate threads
 // (e.g. the rendering thread), provided they share the same mutex
-#define THREADSAFE(mj_func)      \
+#define CRITICAL(mj_func)      \
 do {                             \
     mtx.lock();                  \
     mj_func;                     \
@@ -107,15 +107,15 @@ Eigen::MatrixXd getSubmatrix(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
 Eigen::MatrixXd getInertiaMatrix(const mjModel *m, const mjData* d)
 {
     mjtNum M[m->nv * m->nv];
-    THREADSAFE(mj_fullM(m, M, d->qM));
-    return mjMapMatrix_t(M, m->nv, m->nv); // not threadsafe
+    CRITICAL(mj_fullM(m, M, d->qM));
+    return mjMapMatrix_t(M, m->nv, m->nv); // not CRITICAL
 }
 
 
 Eigen::VectorXd getBiasVector(const mjModel *m, mjData* d)
 {
-    THREADSAFE(mj_forward(m, d));
-    return mjMapVector_t(d->qfrc_bias, m->nv); // not threadsafe
+    CRITICAL(mj_forward(m, d));
+    return mjMapVector_t(d->qfrc_bias, m->nv); // not CRITICAL
 }
 
 
@@ -145,7 +145,7 @@ Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen
 Eigen::MatrixXd getConstraintJacobian(const mjModel* m, const mjData* d)
 {
     Eigen::MatrixXd G;
-    THREADSAFE(
+    CRITICAL(
         G = mjMapMatrix_t(d->efc_J, m->neq*3, m->nv);
     );
 
@@ -196,37 +196,6 @@ Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, Eigen::V
     auto u = gamma.transpose() * tau;
 
     return u;
-}
-
-
-void inverseDynamics(const mjModel *m, mjData* d)
-{
-    mjMapVector_t q(d->qpos, m->nq);
-    mjMapVector_t v(d->qvel, m->nv);
-    mjMapVector_t v_dot(d->qacc, m->nv);
-
-    mjMapVector_t tau(d->qfrc_inverse, m->nv);
-
-    Eigen::VectorXd v_dot_cached;
-
-    THREADSAFE(
-        //v_dot_cached = v_dot;
-        v_dot.setZero(); // No desired acceleration
-        mj_inverse(m, d);
-        //v_dot = v_dot_cached;
-    );
-
-    mjMapVector_t tau_applied(d->qfrc_applied, m->nv);
-
-    auto M = getInertiaMatrix(m, d);
-    auto c = getBiasVector(m, d);
-
-    // Equivalent
-    // Eigen::MatrixXd tau_id = M * v_dot + c;
-
-    tau_applied = tau;
-
-    std::cout << tau.transpose() << std::endl;
 }
 
 
@@ -294,7 +263,7 @@ int main()
         Eigen::VectorXd v_dot;
 
         // Joint space stiffness
-        THREADSAFE(
+        CRITICAL(
             mjMapVector_t q(d->qpos, m->nq);
             v_dot = 100 * -mjMapVector_t(d->qvel, m->nv) +
                     1000 * (q_targ - q);
@@ -306,7 +275,7 @@ int main()
         //Eigen::Vector3d x_force = {0.0, 0.0, weight};
         //get_control(m, d, Eigen::VectorXd::Zero(m->nv), x_force, mtx);
 
-        THREADSAFE(mj_step(m, d));
+        CRITICAL(mj_step(m, d));
 
         std::this_thread::sleep_until(end_time);
     }
