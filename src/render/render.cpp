@@ -77,7 +77,7 @@ void scroll(GLFWwindow* window, double xoffset, double yoffset)
 }
 
 
-void render(const mjModel* model, mjData* data, std::recursive_mutex& mtx)
+void render(const mjModel* model, mjData* data, std::mutex& mtx)
 {
     m = model;
 
@@ -116,15 +116,14 @@ void render(const mjModel* model, mjData* data, std::recursive_mutex& mtx)
 
 
     while(!glfwWindowShouldClose(window)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-        // Critical section because mjv_updateScene writes to mjData
-        mtx.lock(); 
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         glfwPollEvents();
-        mjv_updateScene(model, data, &opt, NULL, &cam, mjCAT_ALL, &scn);
 
-        mtx.unlock();
+        // Critical section because mjv_updateScene writes to mjData
+        {std::lock_guard lock(mtx);
+            mjv_updateScene(model, data, &opt, NULL, &cam, mjCAT_ALL, &scn);
+        }
 
         // Render
         mjrRect viewport = {0, 0, 0, 0};

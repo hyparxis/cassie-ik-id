@@ -8,11 +8,24 @@
 #include <chrono>
 #include <utility>
 
+// For profiling code
+class Profiler {
+public:
+    double mean = 0.0;
+    void update(const double val) {
+        mean += (val - mean) / ++n;
+    }
+private:
+    uint n = 0.0;
+};
+
+Profiler prof;
+
 // Globals
 static mjModel* m;
 static mjData* d;
 
-static std::recursive_mutex mtx;
+static std::mutex mtx;
 
 // Convenience typedefs for interop between mujoco and eigen
 typedef Eigen::Map<
@@ -22,12 +35,23 @@ typedef Eigen::Map<
     Eigen::Matrix<double, Eigen::Dynamic, 1>> mjMapVector_t;
 
 
-// TODO: better name
+// Utility macro for timing things
+#define TIME(prof, block) \
+do { \
+    auto start = std::chrono::steady_clock::now(); \
+    block; \
+    auto elapsed = std::chrono::duration_cast \
+            <std::chrono::microseconds> \
+                (std::chrono::steady_clock::now() - start).count(); \
+    prof.update(elapsed); \
+} while(0)
+
+
 // Avoids contention with code that edits/reads global mjData in seperate threads
 // (e.g. the rendering thread), provided they share the same mutex
 #define CRITICAL(mj_func)                  \
 do {                                       \
-    std::lock_guard<std::recursive_mutex>  \
+    std::lock_guard<std::mutex>  \
         lock(mtx);                         \
     mj_func;                               \
 } while(0)
@@ -91,9 +115,9 @@ std::pair<Eigen::VectorXi, Eigen::VectorXi> split_idcs(const mjModel *m)
 }
 
 
-Eigen::MatrixXd getSubmatrixByCols(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
+Eigen::MatrixXd getSubmatrixByCols(const Eigen::VectorXi& col_idcs, const Eigen::MatrixXd& mat)
 {
-    // TODO: avoid copies
+    // TODO: avoid copies?
     Eigen::MatrixXd submat = Eigen::MatrixXd::Zero(mat.rows(), col_idcs.size());
 
     for (int i = 0; i < col_idcs.size(); i++) 
@@ -105,12 +129,9 @@ Eigen::MatrixXd getSubmatrixByCols(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat
 
 Eigen::MatrixXd getInertiaMatrix(const mjModel *m, const mjData* d)
 {
-    Eigen::MatrixXd M;
-    CRITICAL(
-        mjtNum H[m->nv * m->nv];
-        mj_fullM(m, H, d->qM);
-        M = mjMapMatrix_t(H, m->nv, m->nv);
-    );
+    mjtNum H[m->nv * m->nv];
+    CRITICAL(mj_fullM(m, H, d->qM));
+    Eigen::MatrixXd M = mjMapMatrix_t(H, m->nv, m->nv);
     return M;
 }
 
@@ -126,8 +147,8 @@ Eigen::VectorXd getBiasVector(const mjModel *m, mjData* d)
 }
 
 
-// solves [q_ind q_dep] = gamma * q_dep 
-Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, Eigen::MatrixXd G)
+// solves [qd_ind qd_dep] = gamma * qd_ind
+Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, const Eigen::MatrixXd& G)
 {
     Eigen::VectorXi ind_idx, dep_idx;
     std::tie(ind_idx, dep_idx) = split_idcs(m);
@@ -165,7 +186,7 @@ Eigen::MatrixXd getConstraintJacobian(const mjModel* m, const mjData* d)
 
 // For a rank deficient matrix M this function returns a 
 // matrix R that is row equivalent to M and has full rank
-Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
+Eigen::MatrixXd getFullRankRowEquivalent(const Eigen::MatrixXd& M)
 {
     // TODO: investigate using QR decomp
 
@@ -180,7 +201,7 @@ Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
     // and also sorted so the "smallest" rows are last
 
     // Get rid of zero rows so U is no longer rank deficient
-    // U is sorted so we only need to check bottom (m - rank(U)) rows
+    // Since U is sorted we only need to check bottom (m - rank(U)) rows
     // Calling lu.rank() directly won't account for numerical precision
     int rank_estimate = R.rows();
     while(R.row(rank_estimate - 1).isZero(1e-5))
@@ -190,7 +211,7 @@ Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
 }
 
 
-Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, Eigen::VectorXd v_dot)
+Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, const Eigen::VectorXd& v_dot)
 {
     auto G = getConstraintJacobian(m, d);
     auto R = getFullRankRowEquivalent(G);
@@ -241,9 +262,11 @@ int main()
     // Give some time for the rendering thread to initialize
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    float slowdown = 10;
-    int ts = static_cast<int>(slowdown * 2000 * m->opt.timestep);
-    std::chrono::milliseconds timestep(ts);
+    // Amount of time to sleep to keep the simulation roughly 
+    // realtime
+    float slowdown = 1;
+    int ts = static_cast<int>(slowdown * 1e6 * m->opt.timestep);
+    std::chrono::microseconds timestep(ts);
 
     // Mujoco control input
     mjMapVector_t u(d->ctrl, m->nu);
@@ -252,7 +275,6 @@ int main()
     // is inexact, but that's fine for our purposes
     while (true) {
         auto start_time = std::chrono::steady_clock::now();
-        auto end_time = start_time + timestep;
 
         // Desired joint space acceleration
         Eigen::VectorXd v_dot;
@@ -266,14 +288,16 @@ int main()
             //std::cout << (q_targ - q).norm() << std::endl;
         );
 
+
         Eigen::MatrixXd tau = constrainedInverseDynamics(m, d, v_dot);
         CRITICAL(
             u = tau;
             mj_step(m, d);
         );
+
         std::cout << tau.transpose() << std::endl;
 
-        std::this_thread::sleep_until(end_time);
+        std::this_thread::sleep_until(start_time + timestep);
     }
 
     render_thread.join();
