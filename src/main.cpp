@@ -92,7 +92,7 @@ std::pair<Eigen::VectorXi, Eigen::VectorXi> split_idcs(const mjModel *m)
 }
 
 
-Eigen::MatrixXd getSubmatrix(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
+Eigen::MatrixXd getSubmatrixByCols(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
 {
     // TODO: avoid copies
     Eigen::MatrixXd submat = Eigen::MatrixXd::Zero(mat.rows(), col_idcs.size());
@@ -106,27 +106,35 @@ Eigen::MatrixXd getSubmatrix(Eigen::VectorXi col_idcs, Eigen::MatrixXd mat)
 
 Eigen::MatrixXd getInertiaMatrix(const mjModel *m, const mjData* d)
 {
-    mjtNum M[m->nv * m->nv];
-    CRITICAL(mj_fullM(m, M, d->qM));
-    return mjMapMatrix_t(M, m->nv, m->nv); // not CRITICAL
+    Eigen::MatrixXd M;
+    CRITICAL(
+        mjtNum H[m->nv * m->nv];
+        mj_fullM(m, H, d->qM);
+        M = mjMapMatrix_t(H, m->nv, m->nv);
+    );
+    return M;
 }
 
 
 Eigen::VectorXd getBiasVector(const mjModel *m, mjData* d)
 {
-    CRITICAL(mj_forward(m, d));
-    return mjMapVector_t(d->qfrc_bias, m->nv); // not CRITICAL
+    Eigen::VectorXd c;
+    CRITICAL(
+        mj_forward(m, d);
+        c = mjMapVector_t(d->qfrc_bias, m->nv);
+    );
+    return c;
 }
 
 
 // solves [q_ind q_dep] = gamma * q_dep 
-Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen::MatrixXd G)
+Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, Eigen::MatrixXd G)
 {
     Eigen::VectorXi ind_idx, dep_idx;
     std::tie(ind_idx, dep_idx) = split_idcs(m);
 
-    auto G_ind = getSubmatrix(ind_idx, G);
-    auto G_dep = getSubmatrix(dep_idx, G);
+    auto G_ind = getSubmatrixByCols(ind_idx, G);
+    auto G_dep = getSubmatrixByCols(dep_idx, G);
 
     auto K = -G_dep.inverse() * G_ind;
 
@@ -188,7 +196,7 @@ Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, Eigen::V
     auto G = getConstraintJacobian(m, d);
     auto R = getFullRankRowEquivalent(G);
 
-    auto gamma = getConstraintProjectionMatrix(m, d, R);
+    auto gamma = getConstraintProjectionMatrix(m, R);
     auto M = getInertiaMatrix(m, d);
     auto c = getBiasVector(m, d);
 
@@ -225,20 +233,9 @@ int main()
     mju_copy(&d->qpos[0], qpos_init, 8);
 
     mjMapVector_t q_targ(qpos_init, 8);
-    //d->qpos[0] = 3.0;
-
-
-    // Eigen::PermutationMatrix<4, 4> perm;
-    // perm.indices() = {0, 3, 1, 2};
-
-    // Eigen::Vector4d vec(0, 3, 1, 2);
-
-    // std::cout << vec.transpose() << std::endl;
-    // std::cout << (perm.transpose() * vec).transpose() << std::endl;
-
-    // exit(1);
 
     mj_forward(m, d);
+    
     double weight = mj_getTotalmass(m) * 9.806;
 
     mjMapVector_t u(d->ctrl, m->nu);
@@ -248,7 +245,7 @@ int main()
     // Give some time for the rendering thread to initialize
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    float slowdown = 1;
+    float slowdown = 10;
 
     int ts = static_cast<int>(slowdown * 2000 * m->opt.timestep);
     std::chrono::milliseconds timestep(ts);
@@ -265,17 +262,16 @@ int main()
         // Joint space stiffness
         CRITICAL(
             mjMapVector_t q(d->qpos, m->nq);
-            v_dot = 100 * -mjMapVector_t(d->qvel, m->nv) +
-                    1000 * (q_targ - q);
+            v_dot = 10 * -mjMapVector_t(d->qvel, m->nv) +
+                    500 * (q_targ - q);
+
+            //std::cout << (q_targ - q).norm() << std::endl;
+            u = constrainedInverseDynamics(m, d, v_dot);
+
+            mj_step(m, d);
         );
 
-        u = constrainedInverseDynamics(m, d, v_dot);
         std::cout << u.transpose() << std::endl;
-
-        //Eigen::Vector3d x_force = {0.0, 0.0, weight};
-        //get_control(m, d, Eigen::VectorXd::Zero(m->nv), x_force, mtx);
-
-        CRITICAL(mj_step(m, d));
 
         std::this_thread::sleep_until(end_time);
     }
