@@ -236,17 +236,17 @@ int main()
     
     double weight = mj_getTotalmass(m) * 9.806;
 
-    mjMapVector_t u(d->ctrl, m->nu);
-
     std::thread render_thread(render, m, d, std::ref(mtx));
 
     // Give some time for the rendering thread to initialize
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     float slowdown = 10;
-
     int ts = static_cast<int>(slowdown * 2000 * m->opt.timestep);
     std::chrono::milliseconds timestep(ts);
+
+    // Mujoco control input
+    mjMapVector_t u(d->ctrl, m->nu);
 
     // This will slowly diverge from realtime, since sleep_until 
     // is inexact, but that's fine for our purposes
@@ -254,14 +254,14 @@ int main()
         auto start_time = std::chrono::steady_clock::now();
         auto end_time = start_time + timestep;
 
-        // No desired acceleration
+        // Desired joint space acceleration
         Eigen::VectorXd v_dot;
 
-        // Joint space stiffness
+        // Joint space stiffness (glorified PD control)
         CRITICAL(
             mjMapVector_t q(d->qpos, m->nq);
-            v_dot = 10 * -mjMapVector_t(d->qvel, m->nv) +
-                    500 * (q_targ - q);
+            v_dot = 500 * (q_targ - q) +
+                    10 * -mjMapVector_t(d->qvel, m->nv);
 
             //std::cout << (q_targ - q).norm() << std::endl;
         );
