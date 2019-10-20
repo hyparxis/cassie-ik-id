@@ -54,7 +54,7 @@ void activate_mujoco()
     mj_activate(mjkeyPath.c_str());
 
     char error[1000] = "";
-    m = mj_loadXML("assets/cassie_leg_planar_fixed_rigid_nolimits.xml", NULL, error, 1000);
+    m = mj_loadXML("assets/cassie_leg_planar_fixed_rigid.xml", NULL, error, 1000);
 
     if (!m) {
         std::cerr << error << std::endl;
@@ -183,15 +183,8 @@ Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
 }
 
 
-Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d)
+Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, Eigen::VectorXd v_dot)
 {
-    // No desired acceleration
-    Eigen::VectorXd v_dot;
-
-    THREADSAFE(
-        v_dot = 20 * -mjMapVector_t(d->qvel, m->nv);
-    );
-
     auto G = getConstraintJacobian(m, d);
     auto R = getFullRankRowEquivalent(G);
 
@@ -258,10 +251,12 @@ int main()
 
 
     double qpos_init[] = {
-        0.181, -0.007, 0.139, -0.645, 0.874, -0.556, 0.537, -0.676
+        -0.903, 0.0247, -0.349, -1.14, 1.36, -0.517, 0.497, -0.637
     };
     mju_copy(&d->qpos[0], qpos_init, 8);
-    d->qpos[0] = 3.0;
+
+    mjMapVector_t q_targ(qpos_init, 8);
+    //d->qpos[0] = 3.0;
 
 
     // Eigen::PermutationMatrix<4, 4> perm;
@@ -295,7 +290,17 @@ int main()
         auto start_time = std::chrono::steady_clock::now();
         auto end_time = start_time + timestep;
 
-        u = constrainedInverseDynamics(m, d);
+        // No desired acceleration
+        Eigen::VectorXd v_dot;
+
+        // Joint space stiffness
+        THREADSAFE(
+            mjMapVector_t q(d->qpos, m->nq);
+            v_dot = 100 * -mjMapVector_t(d->qvel, m->nv) +
+                    1000 * (q_targ - q);
+        );
+
+        u = constrainedInverseDynamics(m, d, v_dot);
         std::cout << u.transpose() << std::endl;
 
         //Eigen::Vector3d x_force = {0.0, 0.0, weight};
