@@ -7,13 +7,12 @@
 #include <thread>
 #include <chrono>
 #include <utility>
-#include <set>
 
 // Globals
 static mjModel* m;
 static mjData* d;
 
-static std::mutex mtx;
+static std::recursive_mutex mtx;
 
 // Convenience typedefs for interop between mujoco and eigen
 typedef Eigen::Map<
@@ -26,11 +25,11 @@ typedef Eigen::Map<
 // TODO: better name
 // Avoids contention with code that edits/reads global mjData in seperate threads
 // (e.g. the rendering thread), provided they share the same mutex
-#define CRITICAL(mj_func)      \
-do {                             \
-    mtx.lock();                  \
-    mj_func;                     \
-    mtx.unlock();                \
+#define CRITICAL(mj_func)                  \
+do {                                       \
+    std::lock_guard<std::recursive_mutex>  \
+        lock(mtx);                         \
+    mj_func;                               \
 } while(0)
 
 
@@ -209,7 +208,6 @@ Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d, Eigen::V
 
 int main() 
 {
-    std::mutex mtx;
     activate_mujoco();
 
     // double qpos_init[] = { 
@@ -266,12 +264,14 @@ int main()
                     500 * (q_targ - q);
 
             //std::cout << (q_targ - q).norm() << std::endl;
-            u = constrainedInverseDynamics(m, d, v_dot);
-
-            mj_step(m, d);
         );
 
-        std::cout << u.transpose() << std::endl;
+        Eigen::MatrixXd tau = constrainedInverseDynamics(m, d, v_dot);
+        CRITICAL(
+            u = tau;
+            mj_step(m, d);
+        );
+        std::cout << tau.transpose() << std::endl;
 
         std::this_thread::sleep_until(end_time);
     }

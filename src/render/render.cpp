@@ -77,7 +77,7 @@ void scroll(GLFWwindow* window, double xoffset, double yoffset)
 }
 
 
-void render(const mjModel* model, mjData* data, std::mutex& mtx)
+void render(const mjModel* model, mjData* data, std::recursive_mutex& mtx)
 {
     m = model;
 
