@@ -54,7 +54,7 @@ void activate_mujoco()
     mj_activate(mjkeyPath.c_str());
 
     char error[1000] = "";
-    m = mj_loadXML("assets/4bar_actuated.xml", NULL, error, 1000);
+    m = mj_loadXML("assets/cassie_leg_planar_fixed_rigid_nolimits.xml", NULL, error, 1000);
 
     if (!m) {
         std::cerr << error << std::endl;
@@ -130,7 +130,7 @@ Eigen::MatrixXd getConstraintProjectionMatrix(const mjModel *m, mjData* d, Eigen
 
     auto K = -G_dep.inverse() * G_ind;
 
-    Eigen::MatrixXd gamma = Eigen::MatrixXd::Identity(2 * K.rows(), K.cols());
+    Eigen::MatrixXd gamma = Eigen::MatrixXd::Identity(m->nv, K.cols());
     gamma.bottomRows(K.rows()) = K;
 
     Eigen::VectorXi order(ind_idx.size() + dep_idx.size());
@@ -169,7 +169,7 @@ Eigen::MatrixXd getFullRankRowEquivalent(Eigen::MatrixXd M)
     Eigen::MatrixXd U = lu.matrixLU().triangularView<Eigen::Upper>();
     Eigen::MatrixXd R = U * lu.permutationQ().inverse();
 
-    // Note: U is rank revealing (all rows are linearly dependent or 0)
+    // Note: U is rank revealing (all rows are linearly independent or 0)
     // and also sorted so the "smallest" rows are last
 
     // Get rid of zero rows so U is no longer rank deficient
@@ -189,7 +189,7 @@ Eigen::MatrixXd constrainedInverseDynamics(const mjModel *m, mjData* d)
     Eigen::VectorXd v_dot;
 
     THREADSAFE(
-        v_dot = -mjMapVector_t(d->qvel, m->nv);
+        v_dot = 20 * -mjMapVector_t(d->qvel, m->nv);
     );
 
     auto G = getConstraintJacobian(m, d);
@@ -249,7 +249,6 @@ int main()
     //     -1.1997, 0, 1.4267, 0,      -1.5244,  1.5244, -1.5968
     // };
     // mju_copy(&d->qpos[7], qpos_init, 28);
-    // d->qpos[0] = -1;
     // double qpos_init[] = {
     // 3.52662e-05, 6.6877e-06, 1.01002, 
     // 1, 0.000261766, -0.000213897, -3.32552e-05,-0.000457461,0.00038115,
@@ -257,7 +256,13 @@ int main()
     // -0.00814102,1.02407,-0.00842223,-0.000112123,-0.000141954,-0.00155376
     // };
 
-    // mju_copy(&d->qpos[0], qpos_init, 20);
+
+    double qpos_init[] = {
+        0.181, -0.007, 0.139, -0.645, 0.874, -0.556, 0.537, -0.676
+    };
+    mju_copy(&d->qpos[0], qpos_init, 8);
+    d->qpos[0] = 3.0;
+
 
     // Eigen::PermutationMatrix<4, 4> perm;
     // perm.indices() = {0, 3, 1, 2};
@@ -279,7 +284,9 @@ int main()
     // Give some time for the rendering thread to initialize
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    int ts = static_cast<int>(1000 * m->opt.timestep);
+    float slowdown = 1;
+
+    int ts = static_cast<int>(slowdown * 2000 * m->opt.timestep);
     std::chrono::milliseconds timestep(ts);
 
     // This will slowly diverge from realtime, since sleep_until 
@@ -289,6 +296,7 @@ int main()
         auto end_time = start_time + timestep;
 
         u = constrainedInverseDynamics(m, d);
+        std::cout << u.transpose() << std::endl;
 
         //Eigen::Vector3d x_force = {0.0, 0.0, weight};
         //get_control(m, d, Eigen::VectorXd::Zero(m->nv), x_force, mtx);
