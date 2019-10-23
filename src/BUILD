@@ -6,8 +6,7 @@ cc_binary(
     linkopts = ["-lGL -lpthread"],
     deps = [
         "//src/render:render",
-        "@mujoco//:libmujoco", 
-        "@mujoco//:mujoco",
+        "@mujoco",
         "@eigen",
     ],
 )
