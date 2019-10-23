@@ -15,6 +15,7 @@ cc_import(
 cc_library(
     name = "mujoco",
     hdrs = glob(["include/*"]),
+    srcs = ["bin/libglew.so", "bin/libglfw.so.3"],
     includes = ["."],
     visibility = ["//visibility:public"],
 )
