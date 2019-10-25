@@ -1,0 +1,8 @@
+{
+    "version": "2.0.0",
+    "tasks": [{
+        "label": "bazel-debug-build",
+        "command": "bazel build --compilation_mode=dbg //src/...",
+        "type": "shell"
+    }]
+}
