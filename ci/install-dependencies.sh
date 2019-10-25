@@ -1,6 +1,6 @@
 BAZEL_VERSION=1.1.0
 
-sudo apt-update
+sudo apt-get update
 
 # OpenGL headers
 sudo apt-get install mesa-common-dev
