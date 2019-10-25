@@ -1,9 +1,9 @@
 BAZEL_VERSION=1.1.0
 
-sudp apt-update
+sudo apt-update
 
 # OpenGL headers
-sudo apt install mesa-common-dev
+sudo apt-get install mesa-common-dev
 
 # Bazel + requirements
 sudo apt-get install pkg-config zip g++ zlib1g-dev unzip python3
