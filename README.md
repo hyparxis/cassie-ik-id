@@ -1,4 +1,6 @@
-# IK/ID
+# IK/ID [![Build Status](https://travis-ci.com/p-morais/cassie-ik-id.svg?branch=master)]()
+
+
 This repository will contain code for inverse kinematics and inverse dynamics of a Cassie robot, mainly using MuJoCo and Eigen.
 
 This repo is set-up to be built using [Bazel](https://docs.bazel.build/versions/master/install.html) (currently 1.1.0). To build the code run:
