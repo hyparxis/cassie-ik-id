@@ -18,7 +18,7 @@ Bazel will automatically download Eigen and MuJoCo, but you will still need a Mu
 ### Debugging
 To generate a debug build run ```$ bazel build //src/... compilation_mode=dbg```. For convenience there's also a setting commented out in ```.bazelrc``` that will set this as the default compilation mode.
 
-In VSCode, add the following config to ```launch.json``` under "configurations":
+In VSCode, add the following config to ```launch.json``` under "configurations" (provided you have the official C/C++ extension installed):
 
 ```json
 {
