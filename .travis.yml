@@ -2,6 +2,6 @@ language: cpp
 os: linux
 dist: bionic
 
-install: ./ci/install-dependencies.sh
+install: ./scripts/install-dependencies.sh
 
 script: bazel build //src:main
