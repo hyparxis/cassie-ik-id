@@ -6,6 +6,6 @@ cc_library(
     ],
     copts = ["-Iexternal/mujoco/include"],
     hdrs = ["render.hpp"],
-    deps = ["@mujoco//:mujoco"],
+    deps = ["@mujoco"],
     visibility = ["//visibility:public"],
 )
