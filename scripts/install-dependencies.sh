@@ -4,7 +4,7 @@ BAZEL_VERSION=1.1.0
 # pip install sphinx_rtd_theme
 
 echo "Checking for mjkey"
-if [ -f "/mjkey.txt" ]; then
+if [ -f "mjkey.txt" ]; then
     echo "Moving mjkey.txt to ~/.mujoco"
     mkdir -p ~/.mujoco
     mv mjkey.txt $_
