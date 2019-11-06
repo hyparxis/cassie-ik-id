@@ -10,9 +10,6 @@ if [ -f "mjkey.txt" ]; then
     mv mjkey.txt $_
 fi
 
-pwd
-ls
-
 echo "Installing dependencies"
 sudo apt-get update
 
