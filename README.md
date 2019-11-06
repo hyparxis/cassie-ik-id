@@ -1,4 +1,5 @@
-# IK/ID [![Build Status](https://travis-ci.com/p-morais/cassie-ik-id.svg?branch=master)]()
+# IK/ID [![Build Status](https://travis-ci.com/p-morais/cassie-ik-id.svg?branch=master)](https://travis-ci.com/p-morais/cassie-ik-id.svg?branch=master) [![Documentation Status](https://readthedocs.org/projects/cassie-ik-id/badge/?version=latest)](https://cassie-ik-id.readthedocs.io/en/latest/?badge=latest)
+
 
 
 This repository will contain code for inverse kinematics and inverse dynamics of a Cassie robot, mainly using MuJoCo and Eigen.
