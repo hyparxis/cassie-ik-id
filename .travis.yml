@@ -2,6 +2,8 @@ language: cpp
 os: linux
 dist: bionic
 
+before_install: openssl aes-256-cbc -K $encrypted_214b79e66906_key -iv $encrypted_214b79e66906_iv -in mjkey.txt.enc -out mjkey.txt -d
+
 install: ./scripts/install-dependencies.sh
 
 script: bazel build //src:main

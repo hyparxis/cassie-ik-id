@@ -3,6 +3,12 @@ BAZEL_VERSION=1.1.0
 # pip install sphinx
 # pip install sphinx_rtd_theme
 
+if [ -f "../mjkey.txt" ]; then
+    echo "Moving mjkey.txt to ~/.mujoco"
+    mkdir -p ~/.mujoco
+    mv ../mjkey.txt $_
+fi
+
 sudo apt-get update
 
 # OpenGL headers
